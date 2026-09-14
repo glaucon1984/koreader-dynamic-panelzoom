@@ -1676,6 +1676,7 @@ function PanelZoomIntegration:setupPanelZoomMenuIntegration()
                         checked_func = function() return self.display_full_page_before end,
                         callback = function()
                             self.display_full_page_before = not self.display_full_page_before
+                            self:savePluginSettings()
                         end,
                     },
                     {
@@ -1683,6 +1684,7 @@ function PanelZoomIntegration:setupPanelZoomMenuIntegration()
                         checked_func = function() return self.display_full_page_after end,
                         callback = function()
                             self.display_full_page_after = not self.display_full_page_after
+                            self:savePluginSettings()
                         end,
                     }
                 },
