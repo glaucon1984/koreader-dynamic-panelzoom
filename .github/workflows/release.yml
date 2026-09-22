@@ -21,15 +21,20 @@ jobs:
         run: |
           ZIP_NAME="dynamic_panelzoom.koplugin.zip"
           TAR_NAME="dynamic_panelzoom.koplugin.tar.gz"
-          
+          CALIBRE_ZIP_NAME="CBZ_Output.calibre-plugin.zip"
+
           # Package the folder itself (not just its contents) so the structure is preserved
           # Some users prefer zip, others tar.gz. Let's provide both.
           zip -r $ZIP_NAME dynamic_panelzoom.koplugin/
           tar -czvf $TAR_NAME dynamic_panelzoom.koplugin/
-          
+
+          # calibre "CBZ Output" plugin (KFX -> CBZ with panels.json)
+          python3 tools/kfx2cbz/build_calibre_plugin.py -o "$CALIBRE_ZIP_NAME"
+
           # Save filenames for the release step
           echo "zip_name=${ZIP_NAME}" >> $GITHUB_OUTPUT
           echo "tar_name=${TAR_NAME}" >> $GITHUB_OUTPUT
+          echo "calibre_zip_name=${CALIBRE_ZIP_NAME}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -38,3 +43,4 @@ jobs:
           files: |
             ${{ steps.package.outputs.zip_name }}
             ${{ steps.package.outputs.tar_name }}
+            ${{ steps.package.outputs.calibre_zip_name }}

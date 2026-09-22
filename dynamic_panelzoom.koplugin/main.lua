@@ -7,6 +7,7 @@ local Screen = require("device").screen
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local PanelViewer = require("panel_viewer")
+local PanelData = require("panel_data")
 local _ = require("gettext")
 local logger = require("logger")
 local util = require("util")
@@ -17,7 +18,8 @@ local Event = require("ui/event")
 local Blitbuffer = require("ffi/blitbuffer")
 
 local USER_SETTINGS = {
-    reading_direction_override = "ltr", -- User override for reading direction (rtl/ltr)
+    reading_direction_override = "ltr", -- User override for reading direction (rtl/ltr/auto)
+    use_embedded_panels = true, -- Prefer pre-authored panel data (panels.json) over detection
     zoom_margin_percent = 0.05, -- Default 5% extra margin for the free zoom mode
     standard_margin_percent = 0.0, -- Default 0% extra margin for standard panel-by-panel navigation
     show_adjacent_panels = true, -- Show adjacent content (Smart Fill)
@@ -55,6 +57,8 @@ local PanelZoomIntegration = WidgetContainer:extend{
     _original_ocr_menu_enabled = nil, -- Store original OCR menu state
     _original_genPanelZoomMenu = nil, -- Store original panel zoom menu function
     _json_available = false, -- Track if JSON is available for current document
+    _panel_data = nil, -- Parsed panels.json (see panel_data.lua) for the current document
+    _panel_data_path = nil, -- Document path the panel data was loaded for
 }
 
 function PanelZoomIntegration:savePluginSettings()
@@ -168,13 +172,75 @@ function PanelZoomIntegration:init()
     self:setupPanelZoomMenuIntegration()
 end
 
--- Get effective reading direction (override takes precedence over JSON)
+-- Get effective reading direction.
+-- "ltr"/"rtl": user override. "auto": use the direction declared in the
+-- embedded panel data (panels.json) when present, otherwise ltr.
 function PanelZoomIntegration:getEffectiveReadingDirection()
-    -- No longer use a non-existent JSON property. Default is ltr unless overridden.
-    if self.reading_direction_override then
-        return self.reading_direction_override
+    local override = self.reading_direction_override
+    if override == "rtl" or override == "ltr" then
+        return override
+    end
+    if self._panel_data and self._panel_data.reading_direction then
+        return self._panel_data.reading_direction
     end
     return "ltr"
+end
+
+-- Load pre-authored panel data (panels.json inside the CBZ or a sidecar file)
+-- for the current document. Cheap to call repeatedly: it only re-reads when
+-- the document path changes.
+function PanelZoomIntegration:loadPanelData(doc_path, force)
+    if not doc_path then return end
+    if not force and self._panel_data_path == doc_path then return end
+    self._panel_data_path = doc_path
+    self._panel_data = nil
+    local ok, data = pcall(PanelData.load, doc_path)
+    if ok and data then
+        self._panel_data = data
+        logger.info(string.format("DynamicPanelZoom: Embedded panel data found (%s): %d pages, %d panels, direction=%s",
+            tostring(data.source), data.page_count, data.panel_count, tostring(data.reading_direction)))
+    elseif not ok then
+        logger.warn("DynamicPanelZoom: Failed to load panel data: " .. tostring(data))
+    else
+        logger.info("DynamicPanelZoom: No embedded panel data for " .. doc_path)
+    end
+end
+
+function PanelZoomIntegration:hasEmbeddedPanelData()
+    return self._panel_data ~= nil
+end
+
+-- Human readable status for the menu.
+function PanelZoomIntegration:getPanelDataStatusText()
+    if not self._panel_data then
+        return _("No panel data file found for this document.")
+    end
+    local d = self._panel_data
+    return string.format(_("Panel data: %d panels on %d pages\nSource: %s\nReading direction: %s"),
+        d.panel_count, d.page_count, tostring(d.source), d.reading_direction or _("not specified"))
+end
+
+-- Panels for a page taken from the embedded data, in reading order, with the
+-- optional full-page entries applied. Returns nil when the data does not
+-- cover this page (caller then falls back to dynamic detection).
+function PanelZoomIntegration:getEmbeddedPanelsForPage(page_idx)
+    if not self.use_embedded_panels or not self._panel_data then return nil end
+    local panels = PanelData.getPanels(self._panel_data, page_idx)
+    if not panels then return nil end
+
+    if #panels == 0 then
+        -- Page is described but has no panels (cover, credits, ...):
+        -- show the whole page so panel-by-panel navigation keeps flowing.
+        return { { x = 0, y = 0, w = 1, h = 1 } }
+    end
+
+    if self.display_full_page_before then
+        table.insert(panels, 1, { x = 0, y = 0, w = 1, h = 1 })
+    end
+    if self.display_full_page_after then
+        table.insert(panels, { x = 0, y = 0, w = 1, h = 1 })
+    end
+    return panels
 end
 
 -- Check if document is compatible and integrate with Panel Zoom automatically
@@ -183,7 +249,10 @@ function PanelZoomIntegration:checkAndIntegratePanelZoom()
     
     local doc_path = self.ui.document.file
     if not doc_path then return end
-    
+
+    -- Pick up panels.json (embedded in the CBZ or a sidecar) once per document
+    self:loadPanelData(doc_path)
+
     -- Dynamic Panel Zoom is always available, we just integrate it
     self._json_available = true -- we fake it to keep the integration flag happy
     self:integrateWithPanelZoom()
@@ -835,11 +904,19 @@ function PanelZoomIntegration:importToggleZoomPanels()
         return
     end
     
-    logger.info(string.format("DynamicPanelZoom: Analyzing page %d for %s panels dynamically", page_idx, reading_dir))
-    if self.experimental_panel_sorting_enabled then
-        self.current_panels = self:analyzePageForPanelsExperimental(page_idx)
+    -- Prefer pre-authored panel data (e.g. Kindle panels preserved by kfx2cbz)
+    self:loadPanelData(doc_path)
+    local embedded = self:getEmbeddedPanelsForPage(page_idx)
+    if embedded then
+        logger.info(string.format("DynamicPanelZoom: Using %d embedded panels for page %d", #embedded, page_idx))
+        self.current_panels = embedded
     else
-        self.current_panels = self:analyzePageForPanels(page_idx)
+        logger.info(string.format("DynamicPanelZoom: Analyzing page %d for %s panels dynamically", page_idx, reading_dir))
+        if self.experimental_panel_sorting_enabled then
+            self.current_panels = self:analyzePageForPanelsExperimental(page_idx)
+        else
+            self.current_panels = self:analyzePageForPanels(page_idx)
+        end
     end
     
     -- Cache it for this document and page and direction
@@ -1836,6 +1913,24 @@ function PanelZoomIntegration:setupPanelZoomMenuIntegration()
                             self:savePluginSettings()
                         end,
                     },
+                    {
+                        text_func = function()
+                            local dir = self._panel_data and self._panel_data.reading_direction
+                            if dir then
+                                return string.format(_("Auto from panel data (%s)"), dir:upper())
+                            end
+                            return _("Auto from panel data (none: LTR)")
+                        end,
+                        checked_func = function()
+                            return self.reading_direction_override == "auto"
+                        end,
+                        callback = function()
+                            self.reading_direction_override = "auto"
+                            logger.info("DynamicPanelZoom: Reading direction override set to auto")
+                            self:invalidatePanelCache()
+                            self:savePluginSettings()
+                        end,
+                    },
                 },
                 separator = true,
             })
@@ -1918,6 +2013,7 @@ function PanelZoomIntegration:setupPanelZoomMenuIntegration()
                         checked_func = function() return self.display_full_page_before end,
                         callback = function()
                             self.display_full_page_before = not self.display_full_page_before
+                            self:invalidatePanelCache() -- cached page layouts include the full-page entries
                             self:savePluginSettings()
                         end,
                     },
@@ -1926,6 +2022,7 @@ function PanelZoomIntegration:setupPanelZoomMenuIntegration()
                         checked_func = function() return self.display_full_page_after end,
                         callback = function()
                             self.display_full_page_after = not self.display_full_page_after
+                            self:invalidatePanelCache() -- cached page layouts include the full-page entries
                             self:savePluginSettings()
                         end,
                     },
@@ -2097,6 +2194,52 @@ Full Refresh - Slowest: The strongest screen clear. Eliminates ghosting complete
                             logger.info("DynamicPanelZoom: Experimental Panel Sorting set to " .. tostring(self.experimental_panel_sorting_enabled))
                             self:invalidatePanelCache()
                             self:savePluginSettings()
+                        end,
+                    },
+                },
+                separator = true,
+            })
+
+            -- Embedded panel data (panels.json from kfx2cbz or a sidecar file)
+            table.insert(menu_items, 2, {
+                text_func = function()
+                    if self._panel_data then
+                        return _("Panel data file: found")
+                    end
+                    return _("Panel data file: none")
+                end,
+                sub_item_table = {
+                    {
+                        text = _("Use panel data file when available"),
+                        help_text = _("When a comic carries a panels.json (e.g. created by kfx2cbz from a Kindle book, embedded in the CBZ or saved next to it as <book>.panels.json), use those exact panels and their reading order instead of detecting panels on the fly."),
+                        checked_func = function() return self.use_embedded_panels end,
+                        callback = function()
+                            self.use_embedded_panels = not self.use_embedded_panels
+                            logger.info("DynamicPanelZoom: Use embedded panels set to " .. tostring(self.use_embedded_panels))
+                            self:invalidatePanelCache()
+                            self:savePluginSettings()
+                        end,
+                    },
+                    {
+                        text = _("Reload panel data file"),
+                        enabled_func = function() return self.ui and self.ui.document and self.ui.document.file ~= nil end,
+                        keep_menu_open = true,
+                        callback = function()
+                            self:loadPanelData(self.ui.document.file, true)
+                            self:invalidatePanelCache()
+                            UIManager:show(InfoMessage:new{
+                                text = self:getPanelDataStatusText(),
+                                timeout = 3,
+                            })
+                        end,
+                    },
+                    {
+                        text = _("Panel data file information"),
+                        keep_menu_open = true,
+                        callback = function()
+                            UIManager:show(InfoMessage:new{
+                                text = self:getPanelDataStatusText(),
+                            })
                         end,
                     },
                 },

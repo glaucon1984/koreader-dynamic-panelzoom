@@ -30,3 +30,26 @@ openspec/
 # Markdown files except README
 *.md
 !README.md
+tools/kfx2cbz/dist/
+__pycache__/
+
+# never commit books, comics or page images
+*.cbz
+*.cbr
+*.cb7
+*.kfx
+*.kfx-zip
+*.kpf
+*.azw
+*.azw3
+*.azw8
+*.epub
+*.mobi
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.panels.json
+panels.json
+settings.json
