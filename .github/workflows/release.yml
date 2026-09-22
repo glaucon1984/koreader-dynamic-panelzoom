@@ -22,6 +22,7 @@ jobs:
           ZIP_NAME="dynamic_panelzoom.koplugin.zip"
           TAR_NAME="dynamic_panelzoom.koplugin.tar.gz"
           CALIBRE_ZIP_NAME="CBZ_Output.calibre-plugin.zip"
+          CLI_ZIP_NAME="kfx2cbz-cli.zip"
 
           # Package the folder itself (not just its contents) so the structure is preserved
           # Some users prefer zip, others tar.gz. Let's provide both.
@@ -31,16 +32,31 @@ jobs:
           # calibre "CBZ Output" plugin (KFX -> CBZ with panels.json)
           python3 tools/kfx2cbz/build_calibre_plugin.py -o "$CALIBRE_ZIP_NAME"
 
+          # command line tool (kfx2cbz.py + requirements + README)
+          (cd tools/kfx2cbz && zip -j "$GITHUB_WORKSPACE/$CLI_ZIP_NAME" kfx2cbz.py requirements.txt README.md)
+
           # Save filenames for the release step
           echo "zip_name=${ZIP_NAME}" >> $GITHUB_OUTPUT
           echo "tar_name=${TAR_NAME}" >> $GITHUB_OUTPUT
           echo "calibre_zip_name=${CALIBRE_ZIP_NAME}" >> $GITHUB_OUTPUT
+          echo "cli_zip_name=${CLI_ZIP_NAME}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          body: |
+            ## Downloads
+            | file | what it is | how to install |
+            | --- | --- | --- |
+            | `dynamic_panelzoom.koplugin.zip` (or `.tar.gz`) | KOReader **Dynamic Panel Zoom** plugin, with support for publisher panel data (`panels.json`) | unzip and copy the `dynamic_panelzoom.koplugin` folder into KOReader's `plugins/` directory, restart KOReader |
+            | `CBZ_Output.calibre-plugin.zip` | calibre **CBZ Output** plugin: *Convert books → CBZ* turns DRM-free Kindle (KFX) comics into CBZ with `panels.json` + `ComicInfo.xml` (needs the KFX Input plugin) | calibre → Preferences → Plugins → *Load plugin from file*, restart calibre |
+            | `kfx2cbz-cli.zip` | the same converter as a command line script (`kfx2cbz.py`, needs Python 3 with `lxml` and `Pillow`, plus calibre + KFX Input) | unzip, `pip install -r requirements.txt`, `python kfx2cbz.py book.kfx` |
+
+            See the [README](https://github.com/${{ github.repository }}#readme) and [tools/kfx2cbz](https://github.com/${{ github.repository }}/tree/${{ github.ref_name }}/tools/kfx2cbz) for details.
+
           files: |
             ${{ steps.package.outputs.zip_name }}
             ${{ steps.package.outputs.tar_name }}
             ${{ steps.package.outputs.calibre_zip_name }}
+            ${{ steps.package.outputs.cli_zip_name }}
