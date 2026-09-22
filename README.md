@@ -74,13 +74,27 @@ the *publisher's* panel rectangles and reading order — Kindle comics bought
 from Amazon do ("Kindle Panel View"). This plugin can use that data instead of
 guessing:
 
-1. Convert the (DRM-free) KFX file to CBZ with the **CBZ Output** calibre
-   plugin (see [`tools/kfx2cbz`](tools/kfx2cbz/README.md); there is also a
-   command line tool). Install the plugin zip from the releases page in
-   calibre, then *Convert books → CBZ*. The result is a normal CBZ (page
-   images + `ComicInfo.xml`) that additionally contains a small `panels.json`
-   with the panel rectangles and their order. Any comic reader opens that CBZ
-   as usual.
+1. **Convert the comic to CBZ with calibre** (recommended workflow):
+   1. In calibre install jhowell's **KFX Input** plugin (Preferences → Plugins
+      → *Get new plugins* → "KFX Input") if you do not have it yet.
+   2. Download `CBZ_Output.calibre-plugin.zip` from the
+      [Releases](../../releases) page of this repository and install it with
+      Preferences → Plugins → **Load plugin from file**, then restart calibre.
+   3. Add the DRM-free KFX file to your library, select it and click
+      **Convert books**. Choose **CBZ** as the *Output format* (top right)
+      and press OK. calibre adds a CBZ format to the book.
+   4. Send the CBZ to your device as usual (**Send to device**, or copy the
+      file). Tip: with CBZ set as the preferred output format
+      (Preferences → Behavior) calibre converts KFX comics automatically
+      when you send them.
+
+   The result is a normal CBZ (page images + `ComicInfo.xml`) that
+   additionally contains a small `panels.json` with the panel rectangles and
+   their order. Any comic reader opens that CBZ as usual.
+
+   *Alternative:* the same converter exists as a command line script,
+   `kfx2cbz-cli.zip` on the Releases page (`python kfx2cbz.py book.kfx`).
+   Details for both in [`tools/kfx2cbz`](tools/kfx2cbz/README.md).
 2. Open the CBZ in KOReader. The plugin looks for panel data in this order:
    * `<book>.cbz.panels.json` or `<book>.panels.json` next to the file (sidecar),
    * `panels.json` inside the archive (CBZ/CBT/...).
