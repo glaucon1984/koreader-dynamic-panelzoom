@@ -97,7 +97,7 @@ flattened class-based CSS of calibre.
   "version": 1,
   "generator": "kfx2cbz 0.1.0",
   "reading_direction": "ltr",
-  "source": { "type": "kfx", "asin": "B01NA69LSR", "title": "The Ghost in the Shell Vol. 1" },
+  "source": { "type": "kfx", "asin": "B0XXXXXXXX", "title": "Comic Title Vol. 1" },
   "page_count": 366,
   "panel_count": 2244,
   "pages": [
