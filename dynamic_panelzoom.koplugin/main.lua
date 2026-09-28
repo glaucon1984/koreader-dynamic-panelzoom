@@ -580,8 +580,44 @@ function PanelZoomIntegration:displayPreloadedPanel()
     return true
 end
 
--- Custom drawPagePart that applies document settings
-function PanelZoomIntegration:drawPagePartWithSettings(pageno, rect, panel_center, panel, dim, scale_override)
+-- Night mode inverts the whole screen. KOReader's "Invert Document" option
+-- (bottom menu, kopt option `nightmode_document`) counters that for pages by
+-- drawing them pre-inverted, so they appear in their original colours.
+-- Panels are rendered by this plugin, not by KOReader's page drawer, so the
+-- same pre-inversion has to happen here.
+--
+-- The two viewers differ:
+--   * PanelViewer blits the panel straight into the screen buffer, exactly
+--     like a page: pre-invert when "Invert Document" is on.
+--   * KOReader's ImageViewer shows images through ImageWidget, which already
+--     inverts them in night mode (original_in_nightmode). To end up matching
+--     the page, pre-invert only when "Invert Document" is *off*.
+function PanelZoomIntegration:needsNightModePreInversion(for_image_viewer)
+    if not Screen.night_mode then
+        return false
+    end
+    local configurable = self.ui.document and self.ui.document.configurable
+    local invert_document = configurable ~= nil and configurable.nightmode_document == 1
+    if for_image_viewer then
+        return not invert_document
+    end
+    return invert_document
+end
+
+-- Invert the pixels themselves. Blitbuffer:invert() only toggles a flag that
+-- the blitters and ImageWidget's scaled copies do not reliably honour.
+local function invertImagePixels(image)
+    if image and image.invertRect then
+        image:invertRect(0, 0, image:getWidth(), image:getHeight())
+        return true
+    end
+    return false
+end
+
+-- Custom drawPagePart that applies document settings.
+-- Set for_image_viewer when the result is shown through KOReader's ImageViewer
+-- rather than PanelViewer (see needsNightModePreInversion).
+function PanelZoomIntegration:drawPagePartWithSettings(pageno, rect, panel_center, panel, dim, scale_override, for_image_viewer)
     -- 1. Document & Screen Settings
     local doc_cfg = self.ui.document.info.config or {}
     local gamma = self.ui.view.state.gamma or doc_cfg.gamma or 1.0
@@ -657,10 +693,10 @@ function PanelZoomIntegration:drawPagePartWithSettings(pageno, rect, panel_cente
         if contrast ~= 1.0 and image.contrast then
             image:contrast(contrast)
         end
-        if doc_cfg.invert and image.invert then
-            image:invert()
+        if self:needsNightModePreInversion(for_image_viewer) then
+            invertImagePixels(image)
         end
-        
+
         logger.info(string.format("DynamicPanelZoom: [Safe Zone %dpx] Rendered %dx%d at (%d,%d)", 
             padding, display_w, display_h, custom_position.x, custom_position.y))
     end
@@ -689,10 +725,9 @@ function PanelZoomIntegration:applyDocumentSettings(image)
         logger.info(string.format("DynamicPanelZoom: Applied gamma %.2f", gamma))
     end
     
-    -- Invert
-    if image.invert and doc_cfg.invert then
-        image:invert()
-        logger.info("DynamicPanelZoom: Applied image inversion")
+    -- Invert (PanelViewer semantics, see needsNightModePreInversion)
+    if self:needsNightModePreInversion(false) and invertImagePixels(image) then
+        logger.info("DynamicPanelZoom: Applied night mode document inversion")
     end
     
     return true
@@ -1467,7 +1502,7 @@ function PanelZoomIntegration:switchToZoomMode()
     logger.info(string.format("DynamicPanelZoom: Using safe memory render scale %.4f", safe_scale))
 
     -- 3. Generate safe expanded image
-    local expanded_image, _, _ = self:drawPagePartWithSettings(page, expanded_rect, center, panel, dim, safe_scale)
+    local expanded_image, _, _ = self:drawPagePartWithSettings(page, expanded_rect, center, panel, dim, safe_scale, true)
     if not expanded_image then return false end
 
     -- Create native ImageViewer using safe dynamic loading
@@ -1804,7 +1839,8 @@ function PanelZoomIntegration:switchToZoomModeAtBox(ges)
         panel_center,
         panel,
         dim,
-        safe_scale
+        safe_scale,
+        true -- shown through ImageViewer
     )
 
     if not expanded_image then
