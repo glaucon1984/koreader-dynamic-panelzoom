@@ -17,6 +17,10 @@
 >   that convert DRM-free Kindle (KFX) comics to CBZ while preserving the
 >   Kindle "Panel View" data as `panels.json`, plus `ComicInfo.xml` metadata.
 > * Small fix: toggling "full page before/after" now refreshes cached page layouts.
+> * Night mode fix (1.8.1): zoomed panels follow KOReader's **Invert Document**
+>   option (bottom menu, shown in night mode), so they appear in the same
+>   colours as the page instead of always inverted. Tested on a Kobo Clara BW
+>   and on Android.
 >
 > Nothing in this repository contains or downloads any comic. The tools only
 > work on files you already own, and they do not remove DRM.
