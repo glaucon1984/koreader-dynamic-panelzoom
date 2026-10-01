@@ -17,6 +17,9 @@
 >   that convert DRM-free Kindle (KFX) comics to CBZ while preserving the
 >   Kindle "Panel View" data as `panels.json`, plus `ComicInfo.xml` metadata.
 > * Small fix: toggling "full page before/after" now refreshes cached page layouts.
+> * Fix (1.8.2): panels are rendered from a private copy of KOReader's cached
+>   page tile, so revisiting a panel (back/forward) no longer re-applies the
+>   night-mode inversion or contrast to it and never alters the cache.
 > * Night mode fix (1.8.1): zoomed panels follow KOReader's **Invert Document**
 >   option (bottom menu, shown in night mode), so they appear in the same
 >   colours as the page instead of always inverted. Tested on a Kobo Clara BW

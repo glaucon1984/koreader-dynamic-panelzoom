@@ -425,11 +425,15 @@ function PanelViewer:getSize()
 end
 
 function PanelViewer:updateImage(new_image)
-    -- Update the image source
-    if self._image_bb and self._image_bb ~= self.image then
+    -- Update the image source. Images handed to PanelViewer are the plugin's
+    -- own copies (main.lua drawPagePartWithSettings), so the previous one is
+    -- released here once it is replaced.
+    if self._image_bb and self._image_bb ~= new_image and self._image_bb.free then
         self._image_bb:free()
     end
-    
+    self._image_bb = nil
+    self._scaled_image_bb = nil
+
     self.image = new_image
     self._image_bb = new_image
     self:loadImage()
@@ -469,14 +473,21 @@ function PanelViewer:updatePanelAspectRatio(ratio)
 end
 
 function PanelViewer:freeResources()
-    -- BEST: No separate scaled image to free (1:1 blitting)
-    -- Only free the original if it's not externally managed
-    if self._image_bb and self._image_bb ~= self.image then
+    -- No separate scaled image (1:1 blitting). The displayed image is the
+    -- plugin's own copy of the rendered panel, so it is freed here.
+    if self._image_bb and self._image_bb.free then
         self._image_bb:free()
-        self._image_bb = nil
     end
-    self._scaled_image_bb = nil  -- Just clear the reference
+    self._image_bb = nil
+    self._scaled_image_bb = nil
+    self.image = nil
     logger.info("PanelViewer: Resources freed (1:1 blit mode)")
+end
+
+-- Called by UIManager:close() (CloseWidget event), which is how main.lua
+-- closes the viewer; make sure the panel image is released either way.
+function PanelViewer:onCloseWidget()
+    self:freeResources()
 end
 
 function PanelViewer:close()

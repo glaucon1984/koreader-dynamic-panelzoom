@@ -686,7 +686,13 @@ function PanelZoomIntegration:drawPagePartWithSettings(pageno, rect, panel_cente
         -- Old signature: pageno, rect, zoom, rotation, gamma, hinting
         tile = self.ui.document:renderPage(pageno, rect, final_scale, 0, gamma, true)
     end
-    local image = tile and tile.bb
+    -- renderPage() returns a *cached* tile when the same panel was rendered
+    -- before (DocCache, keyed by page/zoom/rect). Its blitbuffer belongs to
+    -- KOReader's cache: it must not be modified (the contrast/inversion
+    -- below would accumulate on every revisit) and it may be freed by the
+    -- cache at any time. Work on our own copy instead; the copy is owned by
+    -- the plugin and freed by PanelViewer/ImageViewer when no longer shown.
+    local image = tile and tile.bb and tile.bb.copy and tile.bb:copy() or (tile and tile.bb)
 
     -- 8. POST-PROCESSING
     if image then
@@ -737,6 +743,10 @@ end
 function PanelZoomIntegration:cleanupPreloadedImage()
     if self._preloaded_image then
         logger.info("DynamicPanelZoom: Cleaning up preloaded image")
+        -- The preloaded image is our own copy that was never shown: free it.
+        if self._preloaded_image.free then
+            self._preloaded_image:free()
+        end
         self._preloaded_image = nil
         self._preloaded_panel_index = nil
         self._preloaded_custom_position = nil
@@ -1555,7 +1565,7 @@ function PanelZoomIntegration:switchToZoomMode()
 
     local image_viewer = ImageViewer:new{
         image = expanded_image,
-        image_disposable = false, -- Disabled forced deletion to prevent garbage collection races/color noise
+        image_disposable = true, -- our own copy (see drawPagePartWithSettings): ImageViewer frees it on close
         fullscreen = true,
         with_title_bar = false,
         buttons_visible = true, -- Restored native UI buttons and minimap
@@ -1874,7 +1884,7 @@ function PanelZoomIntegration:switchToZoomModeAtBox(ges)
 
     local image_viewer = ImageViewer:new{
         image = expanded_image,
-        image_disposable = false,
+        image_disposable = true, -- our own copy: ImageViewer frees it on close
         fullscreen = true,
         with_title_bar = false,
         buttons_visible = true,
