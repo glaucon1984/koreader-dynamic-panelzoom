@@ -21,14 +21,14 @@ The heavy lifting is done by kfx2cbz.py (shared with the command line tool).
 from calibre.customize.conversion import OptionRecommendation, OutputFormatPlugin
 
 __license__ = "MIT"
-__copyright__ = "2026, koreader-dynamic-panelzoom contributors"
+__copyright__ = "2026, dynamic_panelzoom.koplugin contributors"
 
-PLUGIN_VERSION = (0, 2, 0)
+PLUGIN_VERSION = (0, 2, 1)
 
 
 class CBZOutput(OutputFormatPlugin):
     name = "CBZ Output"
-    author = "koreader-dynamic-panelzoom contributors"
+    author = "dynamic_panelzoom.koplugin contributors"
     version = PLUGIN_VERSION
     minimum_calibre_version = (6, 0, 0)
     supported_platforms = ["windows", "osx", "linux"]

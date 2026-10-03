@@ -2,7 +2,7 @@
 PanelData - loads pre-authored panel data ("panels.json") for a comic.
 
 When a comic was converted from a Kindle KFX book with kfx2cbz
-(https://github.com/tarcisiotm/koreader-dynamic-panelzoom, tools/kfx2cbz) the
+(https://github.com/glaucon1984/dynamic_panelzoom.koplugin, tools/kfx2cbz) the
 publisher's panel rectangles and reading order are stored in a small JSON
 file.  This module finds and parses that file so main.lua can use the exact
 panels instead of guessing them with Leptonica.

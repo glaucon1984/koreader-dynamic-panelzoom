@@ -28,7 +28,7 @@ There are two ways to use it:
 
 1. Install jhowell's **KFX Input** plugin in calibre (Preferences → Plugins →
    Get new plugins → "KFX Input") if you have not already.
-2. Get `CBZ Output.zip` from the [releases](https://github.com/tarcisiotm/koreader-dynamic-panelzoom/releases)
+2. Get `CBZ_Output.calibre-plugin.zip` from the [releases](https://github.com/glaucon1984/dynamic_panelzoom.koplugin/releases)
    page, or build it yourself with `python build_calibre_plugin.py` (written to `dist/`).
 3. Preferences → Plugins → **Load plugin from file** → pick the zip → restart calibre.
 4. Add the DRM-free KFX to your library, select it, **Convert books**, choose

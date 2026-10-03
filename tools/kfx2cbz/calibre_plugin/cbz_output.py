@@ -49,6 +49,6 @@ class PluginWidget(Widget):
             "<p>Writes the page images unchanged into a CBZ. When the source is a Kindle comic "
             "(KFX, converted by the <b>KFX Input</b> plugin) the publisher's panel rectangles and "
             "reading order are stored in <tt>panels.json</tt> inside the CBZ; other readers ignore that file.</p>"
-            '<p>Documentation: <a href="https://github.com/tarcisiotm/koreader-dynamic-panelzoom">'
-            "koreader-dynamic-panelzoom</a> (tools/kfx2cbz).</p>")
+            '<p>Documentation: <a href="https://github.com/glaucon1984/dynamic_panelzoom.koplugin">'
+            "dynamic_panelzoom.koplugin</a> (tools/kfx2cbz).</p>")
         self.formLayout.addRow(self.help_label)
